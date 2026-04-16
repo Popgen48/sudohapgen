@@ -1,0 +1,64 @@
+process ANGSD_DOHAPLO{
+    tag "$meta.id"
+    label 'process_low'
+
+    conda "${moduleDir}/environment.yml"
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/angsd:0.940--hce60e53_2':
+        'biocontainers/angsd:0.940--hce60e53_2' }"
+
+    input:
+    tuple val(meta), path(bam), path(bai), path (sites_file), path(minqfile)
+
+    output:
+    tuple val(meta), path("*.depthSample"), emit: depth_sample, optional: true
+    tuple val(meta), path("*.haplo.gz"), emit: haplo
+    tuple val(meta), path("*.depthGlobal"), emit: depth_global, optional: true
+    tuple val(meta), path("*.qs")         , emit: qs          , optional: true
+    tuple val(meta), path("*.pos.gz")     , emit: pos         , optional: true
+    tuple val(meta), path("*.counts.gz")  , emit: counts      , optional: true
+    tuple val(meta), path("*.icnts.gz")   , emit: icounts     , optional: true
+    tuple val("${task.process}"), val('angsd'), eval("angsd 2>&1 | sed '1!d;s/.*version: //;s/ .*//'"), emit: versions_angsd, topic: versions
+
+    when:
+    task.ext.when == null || task.ext.when
+
+    script:
+    chrom = "${meta.chrom}"
+    def args   = task.ext.args   ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}_${chrom}"
+    def minq   = minqfile ? "-minQfile ${minqfile}" : ""
+
+    """
+    ls -1 *.bam > bamlist.txt
+
+    angsd \\
+        -nThreads ${task.cpus} \\
+        -dohaplocall 1 \\
+        -r ${chrom} \\
+        ${args} \\
+        -bam bamlist.txt \\
+        -out ${prefix} \\
+        -sites ${sites_file}/*.txt
+        ${minq}
+    """
+
+    stub:
+    def args   = task.ext.args   ?: ''
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    depthSample_cmd = args.contains('-doDepth')       ? "touch ${prefix}.depthSample"       : ''
+    depthGlobal_cmd = args.contains('-doDepth')       ? "touch ${prefix}.depthGlobal"       : ''
+    qs_cmd          = args.contains('-doQsDist')      ? "touch ${prefix}.qs"                : ''
+    pos_cmd         = args.contains('-dumpCounts')    ? "echo | gzip > ${prefix}.pos.gz"    : ''
+    counts_cmd      = args =~ /-dumpCounts\s+[12345]/ ? "echo | gzip > ${prefix}.counts.gz" : ''
+    icounts_cmd     = args.contains('-iCounts')       ? "echo | gzip > ${prefix}.icnts.gz"  : ''
+
+    """
+    ${depthSample_cmd}
+    ${depthGlobal_cmd}
+    ${qs_cmd}
+    ${pos_cmd}
+    ${counts_cmd}
+    ${icounts_cmd}
+    """
+}

@@ -3,6 +3,11 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+include { SAMTOOLS_IDXSTATS      } from '../modules/local/samtools/idxstats/main'
+include { SAMTOOLS_VIEW          } from '../modules/local/samtools/view/main'
+include { SAMTOOLS_INDEX         } from '../modules/nf-core/samtools/index/main'
+include { ANGSD_DOHAPLO          } from '../modules/local/angsd/dohaplo/main'
+include { ANGSD_HAPLOTOPLINK     } from '../modules/local/angsd/haplotoplink/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -23,6 +28,79 @@ workflow SUDOHAPGEN {
 
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
+
+    ch_samplesheet.view()
+
+    if(!params.include_chroms){
+        //
+        // MODULE : SAMTOOLS_IDXSTATS
+        //
+
+            SAMTOOLS_IDXSTATS(
+                ch_samplesheet.take(1)
+            )
+
+        chrom_text_file = SAMTOOLS_IDXSTATS.out.text.map{meta,txt -> txt}
+
+    }
+
+    else{
+            chrom_text_file = channel.fromPath(params.include_chroms)
+        }
+
+    chrom_names_ch = chrom_text_file
+        .splitText()
+        .map { it.trim() }
+
+    ch_samtools_view = ch_samplesheet.combine(chrom_names_ch)
+    
+    //
+    // MODULE: SAMTOOLS_VIEW
+    //
+    SAMTOOLS_VIEW(
+        ch_samtools_view,
+        [[],[],[]],
+        [[],[]],
+        [[],[]],
+        []
+    )
+
+    //
+    // MODULE: SAMTOOLS_INDEX
+    //
+    SAMTOOLS_INDEX(
+        SAMTOOLS_VIEW.out.bam
+    )
+
+    ch_meta_bam_idx = SAMTOOLS_VIEW.out.bam.combine(SAMTOOLS_INDEX.out.index,by:0)
+
+    sites_file = channel.fromPath(params.sites_file)
+
+    ch_meta_filepath = sites_file.splitCsv(header: true)
+    .map { row -> 
+        // We return a tuple where the first element is the join key (chrom)
+        return [ row.chrom, row.file_path ] 
+    }
+
+    ch_chrom_meta_bam_bai = ch_meta_bam_idx.map{meta,bam,idx->tuple(meta.chrom,meta,bam,idx)}
+
+    ch_angsd_dohaplo = ch_chrom_meta_bam_bai.join(ch_meta_filepath).map{chrom,meta,bam,idx,sites_f -> tuple(meta,bam,idx,sites_f)}
+
+    //
+    // MODULE: ANGSD_DOHAPLO
+    //
+    ANGSD_DOHAPLO(
+        ch_angsd_dohaplo.map{meta,bam,idx,sites_f->tuple(meta,bam,idx,sites_f,[])}
+    )
+
+    //
+    // MODULE: ANGSD_HAPLOTOPLINK
+    //
+    ANGSD_HAPLOTOPLINK(
+        ANGSD_DOHAPLO.out.haplo
+    )
+    
+    
 
     //
     // Collate and save software versions
