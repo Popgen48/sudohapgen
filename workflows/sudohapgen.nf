@@ -8,6 +8,7 @@ include { SAMTOOLS_VIEW          } from '../modules/local/samtools/view/main'
 include { SAMTOOLS_INDEX         } from '../modules/nf-core/samtools/index/main'
 include { ANGSD_DOHAPLO          } from '../modules/local/angsd/dohaplo/main'
 include { ANGSD_HAPLOTOPLINK     } from '../modules/local/angsd/haplotoplink/main'
+include { PLINK2_RECODE          } from '../modules/local/plink2/recode/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -29,7 +30,6 @@ workflow SUDOHAPGEN {
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
-    ch_samplesheet.view()
 
     if(!params.include_chroms){
         //
@@ -99,7 +99,17 @@ workflow SUDOHAPGEN {
     ANGSD_HAPLOTOPLINK(
         ANGSD_DOHAPLO.out.haplo
     )
-    
+
+    ch_plink2_recode = ANGSD_HAPLOTOPLINK.out.plink_files.map{meta,files->tuple(meta,files[0],files[1])}
+
+    ch_plink2_recode.view()
+
+    //
+    //MODULE: PLINK2_RECODE
+    //
+    PLINK2_RECODE(
+        ch_plink2_recode
+    )
     
 
     //
