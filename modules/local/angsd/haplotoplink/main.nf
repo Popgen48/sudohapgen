@@ -14,7 +14,8 @@ process ANGSD_HAPLOTOPLINK{
     output:
     // Plink typically outputs .ped and .map, or .bed, .bim, .fam
     // Adjust the glob pattern if angsd outputs something different
-    tuple val(meta), path ("${haplo_gz.baseName}.*") , emit: plink_files
+    tuple val(meta), path ("${haplo_gz.baseName}*.tped") , emit:tped
+    tuple val(meta), path ("${haplo_gz.baseName}*.tfam") , emit:tfam
 
     script:
     // Define a convenience variable for the prefix

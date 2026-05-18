@@ -6,9 +6,11 @@
 include { SAMTOOLS_IDXSTATS      } from '../modules/local/samtools/idxstats/main'
 include { SAMTOOLS_VIEW          } from '../modules/local/samtools/view/main'
 include { SAMTOOLS_INDEX         } from '../modules/nf-core/samtools/index/main'
+include { SAMTOOLS_MAKE_REF_ALLELES_TSV } from '../modules/local/samtools/make_ref_alleles_tsv/main'
 include { ANGSD_DOHAPLO          } from '../modules/local/angsd/dohaplo/main'
 include { ANGSD_HAPLOTOPLINK     } from '../modules/local/angsd/haplotoplink/main'
 include { PLINK2_RECODE          } from '../modules/local/plink2/recode/main'
+include { PLINK2_MERGE_TPED_TFAM } from '../modules/local/plink2/merged_tped_tam/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -90,7 +92,10 @@ workflow SUDOHAPGEN {
     // MODULE: ANGSD_DOHAPLO
     //
     ANGSD_DOHAPLO(
-        ch_angsd_dohaplo.map{meta,bam,idx,sites_f->tuple(meta,bam,idx,sites_f,[])}
+        ch_angsd_dohaplo.map { meta, bam, idx, sites_f ->
+            def sites_dir = file(sites_f).parent
+            tuple(meta, bam, idx, sites_f, sites_dir, [])
+            }
     )
 
     //
@@ -99,18 +104,30 @@ workflow SUDOHAPGEN {
     ANGSD_HAPLOTOPLINK(
         ANGSD_DOHAPLO.out.haplo
     )
+    
+    ch_tped_tfam = ANGSD_HAPLOTOPLINK.out.tped.join(ANGSD_HAPLOTOPLINK.out.tfam).map{meta, tped, tfam-> tuple(meta.chrom, meta.id,tped,tfam)}
 
-    ch_plink2_recode = ANGSD_HAPLOTOPLINK.out.plink_files.map{meta,files->tuple(meta,files[0],files[1])}
 
-    ch_plink2_recode.view()
 
-    //
-    //MODULE: PLINK2_RECODE
-    //
+
+
+    //ch_plink2_recode = ANGSD_HAPLOTOPLINK.out.plink_files.map{meta,files->tuple(meta,files[0],files[1])}
+
+    if(params.ref_fasta){
+            SAMTOOLS_MAKE_REF_ALLELES_TSV(
+                params.ref_fasta,
+                ch_meta_filepath
+            )
+
+            ch_plink2_recode = SAMTOOLS_MAKE_REF_ALLELES_TSV.out.ref_alleles.combine(ch_tped_tfam,by:0)
+            ch_plink2_recode = ch_plink2_recode.map{chrm,tsv,prefix,tped,tfam->tuple([id:prefix,chrom:chrm],tped,tfam,tsv)}
+            
+        }
+
     PLINK2_RECODE(
         ch_plink2_recode
     )
-    
+
 
     //
     // Collate and save software versions

@@ -8,7 +8,7 @@ process ANGSD_DOHAPLO{
         'biocontainers/angsd:0.940--hce60e53_2' }"
 
     input:
-    tuple val(meta), path(bam), path(bai), path (sites_file), path(minqfile)
+    tuple val(meta), path(bam), path(bai), path (sites_file), path(sites_file_dir), path(minqfile)
 
     output:
     tuple val(meta), path("*.depthSample"), emit: depth_sample, optional: true
@@ -39,7 +39,7 @@ process ANGSD_DOHAPLO{
         ${args} \\
         -bam bamlist.txt \\
         -out ${prefix} \\
-        -sites ${sites_file}/*.txt
+        -sites ${sites_file_dir}/${sites_file}
         ${minq}
     """
 

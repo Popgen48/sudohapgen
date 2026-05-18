@@ -8,7 +8,7 @@ process PLINK2_RECODE {
         'biocontainers/plink2:2.00a5.10--h449a9fb_0' }"
 
     input:
-    tuple val(meta), path(tped), path(tfam)
+    tuple val(meta), path(tped), path(tfam), path(ref_allele_tsv)
 
     output:
     tuple val(meta), path("*.vcf"), emit: vcf
@@ -16,14 +16,16 @@ process PLINK2_RECODE {
 
     script:
     def args = task.ext.args ?: ''
-   def prefix = task.ext.prefix ?: "${meta.id}_${meta.chrom}"
+    def prefix = task.ext.prefix ?: "${meta.id}_${meta.chrom}"
     // Extract the base name of the tfile from the input files
     def input_base = tped.baseName
     """
     plink2 \\
         --tfile $input_base \\
         $args \\
+        --ref-allele 'force' ${ref_allele_tsv} 2 1 \\
         --out $prefix
+
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
