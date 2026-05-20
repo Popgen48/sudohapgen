@@ -114,9 +114,11 @@ workflow SUDOHAPGEN {
     //ch_plink2_recode = ANGSD_HAPLOTOPLINK.out.plink_files.map{meta,files->tuple(meta,files[0],files[1])}
 
     if(params.ref_fasta){
+
+            ref_fasta = Channel.fromPath(params.ref_fasta, checkIfExists: true)
+
             SAMTOOLS_MAKE_REF_ALLELES_TSV(
-                params.ref_fasta,
-                ch_meta_filepath
+                ch_meta_filepath.combine(ref_fasta)
             )
 
             ch_plink2_recode = SAMTOOLS_MAKE_REF_ALLELES_TSV.out.ref_alleles.combine(ch_tped_tfam,by:0)

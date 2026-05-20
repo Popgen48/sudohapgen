@@ -9,8 +9,7 @@ process SAMTOOLS_MAKE_REF_ALLELES_TSV{
 
 
     input:
-    val(reference)
-    tuple val(chrom), path(tsv)
+    tuple val(chrom), path(tsv), path(reference)
     
 
     output:
