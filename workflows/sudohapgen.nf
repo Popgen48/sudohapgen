@@ -86,8 +86,9 @@ workflow SUDOHAPGEN {
 
     ch_chrom_meta_bam_bai = ch_meta_bam_idx.map{meta,bam,idx->tuple(meta.chrom,meta,bam,idx)}
 
-    ch_angsd_dohaplo = ch_chrom_meta_bam_bai.join(ch_meta_filepath).map{chrom,meta,bam,idx,sites_f -> tuple(meta,bam,idx,sites_f)}
-
+    ch_angsd_dohaplo = ch_chrom_meta_bam_bai.combine(ch_meta_filepath, by:0).map{chrom,meta,bam,idx,sites_f -> tuple(meta,bam,idx,sites_f)}
+    
+    ch_angsd_dohaplo.view()
     //
     // MODULE: ANGSD_DOHAPLO
     //
